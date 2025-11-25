@@ -19,7 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/coalition-sre/terraform-provider-openwebui/internal/provider/client/models"
+	"terraform-provider-openwebui/internal/provider/client/models"
 )
 
 var (

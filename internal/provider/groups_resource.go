@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -16,7 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
-	"github.com/coalition-sre/terraform-provider-openwebui/internal/provider/client/groups"
+	"terraform-provider-openwebui/internal/provider/client/groups"
 )
 
 var (
@@ -234,7 +235,9 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	state.Name = types.StringValue(group.Name)
 	state.Description = types.StringValue(group.Description)
 
+	sort.Strings(group.UserIDs)
 	userIDs, diags := types.ListValueFrom(ctx, types.StringType, group.UserIDs)
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return

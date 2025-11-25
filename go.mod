@@ -1,4 +1,4 @@
-module github.com/coalition-sre/terraform-provider-openwebui
+module terraform-provider-openwebui
 
 go 1.23.0
 
