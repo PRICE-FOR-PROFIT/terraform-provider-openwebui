@@ -36,7 +36,7 @@ jobs:
             GOOS=${PLATFORM%/*}
             GOARCH=${PLATFORM#*/}
             # Terraform provider naming convention: terraform-provider-<name>_v<version>_<os>_<arch>.zip
-            BIN_NAME="terraform-provider-openwebui_${GOOS}_${GOARCH}"
+            BIN_NAME="terraform-provider-openwebui_${VERSION}_${GOOS}_${GOARCH}"
             if [ "$GOOS" = "windows" ]; then
               BIN_NAME="${BIN_NAME}.exe"
             fi
