@@ -8,8 +8,9 @@ import (
 	"flag"
 	"log"
 
+	"terraform-provider-openwebui/internal/provider"
+
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
-	"github.com/coalition-sre/terraform-provider-openwebui/internal/provider"
 )
 
 var (
@@ -25,7 +26,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/coalition-sre/openwebui",
+		Address: "registry.terraform.io/insight2profit/openwebui",
 		Debug:   debug,
 	}
 

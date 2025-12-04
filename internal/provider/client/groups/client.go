@@ -139,7 +139,7 @@ func (c *Client) Delete(id string) error {
 }
 
 func (c *Client) List() ([]Group, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/groups/", c.BaseURL), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/groups/", c.BaseURL), nil)
 	if err != nil {
 		return nil, err
 	}

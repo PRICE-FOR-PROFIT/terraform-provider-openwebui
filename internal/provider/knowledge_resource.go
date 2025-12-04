@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/coalition-sre/terraform-provider-openwebui/internal/provider/client/knowledge"
+	"terraform-provider-openwebui/internal/provider/client/knowledge"
 )
 
 // Ensure provider defined types fully satisfy framework interfaces

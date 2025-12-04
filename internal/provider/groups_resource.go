@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -16,7 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 
-	"github.com/coalition-sre/terraform-provider-openwebui/internal/provider/client/groups"
+	"terraform-provider-openwebui/internal/provider/client/groups"
 )
 
 var (
@@ -84,10 +85,45 @@ func (r *GroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp
 					"chat": schema.SingleNestedAttribute{
 						Required: true,
 						Attributes: map[string]schema.Attribute{
-							"file_upload": schema.BoolAttribute{Required: true},
-							"delete":      schema.BoolAttribute{Required: true},
-							"edit":        schema.BoolAttribute{Required: true},
-							"temporary":   schema.BoolAttribute{Required: true},
+							"file_upload":         schema.BoolAttribute{Required: true},
+							"delete":              schema.BoolAttribute{Required: true},
+							"edit":                schema.BoolAttribute{Required: true},
+							"temporary":           schema.BoolAttribute{Required: true},
+							"controls":            schema.BoolAttribute{Required: true},
+							"valves":              schema.BoolAttribute{Required: true},
+							"system_prompt":       schema.BoolAttribute{Required: true},
+							"params":              schema.BoolAttribute{Required: true},
+							"delete_message":      schema.BoolAttribute{Required: true},
+							"continue_response":   schema.BoolAttribute{Required: true},
+							"regenerate_response": schema.BoolAttribute{Required: true},
+							"rate_response":       schema.BoolAttribute{Required: true},
+							"share":               schema.BoolAttribute{Required: true},
+							"export":              schema.BoolAttribute{Required: true},
+							"stt":                 schema.BoolAttribute{Required: true},
+							"tts":                 schema.BoolAttribute{Required: true},
+							"call":                schema.BoolAttribute{Required: true},
+							"multiple_models":     schema.BoolAttribute{Required: true},
+							"temporary_enforced":  schema.BoolAttribute{Required: true},
+						},
+					},
+					"sharing": schema.SingleNestedAttribute{
+						Required: true,
+						Attributes: map[string]schema.Attribute{
+							"public_models":    schema.BoolAttribute{Required: true},
+							"public_knowledge": schema.BoolAttribute{Required: true},
+							"public_prompts":   schema.BoolAttribute{Required: true},
+							"public_tools":     schema.BoolAttribute{Required: true},
+							"public_notes":     schema.BoolAttribute{Required: true},
+						},
+					},
+					"features": schema.SingleNestedAttribute{
+						Required: true,
+						Attributes: map[string]schema.Attribute{
+							"direct_tool_servers": schema.BoolAttribute{Required: true},
+							"web_search":          schema.BoolAttribute{Required: true},
+							"image_generation":    schema.BoolAttribute{Required: true},
+							"code_interpreter":    schema.BoolAttribute{Required: true},
+							"notes":               schema.BoolAttribute{Required: true},
 						},
 					},
 				},
@@ -170,11 +206,40 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 				Tools     bool `tfsdk:"tools"`
 			} `tfsdk:"workspace"`
 			Chat struct {
-				FileUpload bool `tfsdk:"file_upload"`
-				Delete     bool `tfsdk:"delete"`
-				Edit       bool `tfsdk:"edit"`
-				Temporary  bool `tfsdk:"temporary"`
+				FileUpload         bool `tfsdk:"file_upload"`
+				Delete             bool `tfsdk:"delete"`
+				Edit               bool `tfsdk:"edit"`
+				Temporary          bool `tfsdk:"temporary"`
+				Controls           bool `tfsdk:"controls"`
+				Valves             bool `tfsdk:"valves"`
+				SystemPrompt       bool `tfsdk:"system_prompt"`
+				Params             bool `tfsdk:"params"`
+				DeleteMessage      bool `tfsdk:"delete_message"`
+				ContinueResponse   bool `tfsdk:"continue_response"`
+				RegenerateResponse bool `tfsdk:"regenerate_response"`
+				RateResponse       bool `tfsdk:"rate_response"`
+				Share              bool `tfsdk:"share"`
+				Export             bool `tfsdk:"export"`
+				Stt                bool `tfsdk:"stt"`
+				Tts                bool `tfsdk:"tts"`
+				Call               bool `tfsdk:"call"`
+				MultipleModels     bool `tfsdk:"multiple_models"`
+				TemporaryEnforced  bool `tfsdk:"temporary_enforced"`
 			} `tfsdk:"chat"`
+			Sharing struct {
+				PublicModels    bool `tfsdk:"public_models"`
+				PublicKnowledge bool `tfsdk:"public_knowledge"`
+				PublicPrompts   bool `tfsdk:"public_prompts"`
+				PublicTools     bool `tfsdk:"public_tools"`
+				PublicNotes     bool `tfsdk:"public_notes"`
+			} `tfsdk:"sharing"`
+			Features struct {
+				DirectToolServers bool `tfsdk:"direct_tool_servers"`
+				WebSearch         bool `tfsdk:"web_search"`
+				ImageGeneration   bool `tfsdk:"image_generation"`
+				CodeInterpreter   bool `tfsdk:"code_interpreter"`
+				Notes             bool `tfsdk:"notes"`
+			} `tfsdk:"features"`
 		}
 		diags = plan.Permissions.As(ctx, &permissions, basetypes.ObjectAsOptions{})
 		resp.Diagnostics.Append(diags...)
@@ -190,10 +255,39 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 				Tools:     permissions.Workspace.Tools,
 			},
 			Chat: groups.ChatPermissions{
-				FileUpload: permissions.Chat.FileUpload,
-				Delete:     permissions.Chat.Delete,
-				Edit:       permissions.Chat.Edit,
-				Temporary:  permissions.Chat.Temporary,
+				FileUpload:         permissions.Chat.FileUpload,
+				Delete:             permissions.Chat.Delete,
+				Edit:               permissions.Chat.Edit,
+				Temporary:          permissions.Chat.Temporary,
+				Controls:           permissions.Chat.Controls,
+				Valves:             permissions.Chat.Valves,
+				SystemPrompt:       permissions.Chat.SystemPrompt,
+				Params:             permissions.Chat.Params,
+				DeleteMessage:      permissions.Chat.DeleteMessage,
+				ContinueResponse:   permissions.Chat.ContinueResponse,
+				RegenerateResponse: permissions.Chat.RegenerateResponse,
+				RateResponse:       permissions.Chat.RateResponse,
+				Share:              permissions.Chat.Share,
+				Export:             permissions.Chat.Export,
+				Stt:                permissions.Chat.Stt,
+				Tts:                permissions.Chat.Tts,
+				Call:               permissions.Chat.Call,
+				MultipleModels:     permissions.Chat.MultipleModels,
+				TemporaryEnforced:  permissions.Chat.TemporaryEnforced,
+			},
+			Sharing: groups.SharingPermissions{
+				PublicModels:    permissions.Sharing.PublicModels,
+				PublicKnowledge: permissions.Sharing.PublicKnowledge,
+				PublicPrompts:   permissions.Sharing.PublicPrompts,
+				PublicTools:     permissions.Sharing.PublicTools,
+				PublicNotes:     permissions.Sharing.PublicNotes,
+			},
+			Features: groups.FeaturesPermissions{
+				DirectToolServers: permissions.Features.DirectToolServers,
+				WebSearch:         permissions.Features.WebSearch,
+				ImageGeneration:   permissions.Features.ImageGeneration,
+				CodeInterpreter:   permissions.Features.CodeInterpreter,
+				Notes:             permissions.Features.Notes,
 			},
 		}
 	}
@@ -234,7 +328,9 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	state.Name = types.StringValue(group.Name)
 	state.Description = types.StringValue(group.Description)
 
+	sort.Strings(group.UserIDs)
 	userIDs, diags := types.ListValueFrom(ctx, types.StringType, group.UserIDs)
+
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -250,10 +346,41 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 		}
 
 		chatAttrs := map[string]attr.Value{
-			"file_upload": types.BoolValue(group.Permissions.Chat.FileUpload),
-			"delete":      types.BoolValue(group.Permissions.Chat.Delete),
-			"edit":        types.BoolValue(group.Permissions.Chat.Edit),
-			"temporary":   types.BoolValue(group.Permissions.Chat.Temporary),
+			"file_upload":         types.BoolValue(group.Permissions.Chat.FileUpload),
+			"delete":              types.BoolValue(group.Permissions.Chat.Delete),
+			"edit":                types.BoolValue(group.Permissions.Chat.Edit),
+			"temporary":           types.BoolValue(group.Permissions.Chat.Temporary),
+			"controls":            types.BoolValue(group.Permissions.Chat.Controls),
+			"valves":              types.BoolValue(group.Permissions.Chat.Valves),
+			"system_prompt":       types.BoolValue(group.Permissions.Chat.SystemPrompt),
+			"params":              types.BoolValue(group.Permissions.Chat.Params),
+			"delete_message":      types.BoolValue(group.Permissions.Chat.DeleteMessage),
+			"continue_response":   types.BoolValue(group.Permissions.Chat.ContinueResponse),
+			"regenerate_response": types.BoolValue(group.Permissions.Chat.RegenerateResponse),
+			"rate_response":       types.BoolValue(group.Permissions.Chat.RateResponse),
+			"share":               types.BoolValue(group.Permissions.Chat.Share),
+			"export":              types.BoolValue(group.Permissions.Chat.Export),
+			"stt":                 types.BoolValue(group.Permissions.Chat.Stt),
+			"tts":                 types.BoolValue(group.Permissions.Chat.Tts),
+			"call":                types.BoolValue(group.Permissions.Chat.Call),
+			"multiple_models":     types.BoolValue(group.Permissions.Chat.MultipleModels),
+			"temporary_enforced":  types.BoolValue(group.Permissions.Chat.TemporaryEnforced),
+		}
+
+		sharingAttrs := map[string]attr.Value{
+			"public_models":    types.BoolValue(group.Permissions.Sharing.PublicModels),
+			"public_knowledge": types.BoolValue(group.Permissions.Sharing.PublicKnowledge),
+			"public_prompts":   types.BoolValue(group.Permissions.Sharing.PublicPrompts),
+			"public_tools":     types.BoolValue(group.Permissions.Sharing.PublicTools),
+			"public_notes":     types.BoolValue(group.Permissions.Sharing.PublicNotes),
+		}
+
+		featuresAttrs := map[string]attr.Value{
+			"direct_tool_servers": types.BoolValue(group.Permissions.Features.DirectToolServers),
+			"web_search":          types.BoolValue(group.Permissions.Features.WebSearch),
+			"image_generation":    types.BoolValue(group.Permissions.Features.ImageGeneration),
+			"code_interpreter":    types.BoolValue(group.Permissions.Features.CodeInterpreter),
+			"notes":               types.BoolValue(group.Permissions.Features.Notes),
 		}
 
 		workspaceObj, diags := types.ObjectValue(
@@ -272,12 +399,57 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 
 		chatObj, diags := types.ObjectValue(
 			map[string]attr.Type{
-				"file_upload": types.BoolType,
-				"delete":      types.BoolType,
-				"edit":        types.BoolType,
-				"temporary":   types.BoolType,
+				"file_upload":         types.BoolType,
+				"delete":              types.BoolType,
+				"edit":                types.BoolType,
+				"temporary":           types.BoolType,
+				"controls":            types.BoolType,
+				"valves":              types.BoolType,
+				"system_prompt":       types.BoolType,
+				"params":              types.BoolType,
+				"delete_message":      types.BoolType,
+				"continue_response":   types.BoolType,
+				"regenerate_response": types.BoolType,
+				"rate_response":       types.BoolType,
+				"share":               types.BoolType,
+				"export":              types.BoolType,
+				"stt":                 types.BoolType,
+				"tts":                 types.BoolType,
+				"call":                types.BoolType,
+				"multiple_models":     types.BoolType,
+				"temporary_enforced":  types.BoolType,
 			},
 			chatAttrs,
+		)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		sharingObj, diags := types.ObjectValue(
+			map[string]attr.Type{
+				"public_models":    types.BoolType,
+				"public_knowledge": types.BoolType,
+				"public_prompts":   types.BoolType,
+				"public_tools":     types.BoolType,
+				"public_notes":     types.BoolType,
+			},
+			sharingAttrs,
+		)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		featuresObj, diags := types.ObjectValue(
+			map[string]attr.Type{
+				"direct_tool_servers": types.BoolType,
+				"web_search":          types.BoolType,
+				"image_generation":    types.BoolType,
+				"code_interpreter":    types.BoolType,
+				"notes":               types.BoolType,
+			},
+			featuresAttrs,
 		)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -288,10 +460,14 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 			map[string]attr.Type{
 				"workspace": types.ObjectType{AttrTypes: workspaceObj.AttributeTypes(ctx)},
 				"chat":      types.ObjectType{AttrTypes: chatObj.AttributeTypes(ctx)},
+				"sharing":   types.ObjectType{AttrTypes: sharingObj.AttributeTypes(ctx)},
+				"features":  types.ObjectType{AttrTypes: featuresObj.AttributeTypes(ctx)},
 			},
 			map[string]attr.Value{
 				"workspace": workspaceObj,
 				"chat":      chatObj,
+				"sharing":   sharingObj,
+				"features":  featuresObj,
 			},
 		)
 		resp.Diagnostics.Append(diags...)
@@ -336,11 +512,40 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 				Tools     bool `tfsdk:"tools"`
 			} `tfsdk:"workspace"`
 			Chat struct {
-				FileUpload bool `tfsdk:"file_upload"`
-				Delete     bool `tfsdk:"delete"`
-				Edit       bool `tfsdk:"edit"`
-				Temporary  bool `tfsdk:"temporary"`
+				FileUpload         bool `tfsdk:"file_upload"`
+				Delete             bool `tfsdk:"delete"`
+				Edit               bool `tfsdk:"edit"`
+				Temporary          bool `tfsdk:"temporary"`
+				Controls           bool `tfsdk:"controls"`
+				Valves             bool `tfsdk:"valves"`
+				SystemPrompt       bool `tfsdk:"system_prompt"`
+				Params             bool `tfsdk:"params"`
+				DeleteMessage      bool `tfsdk:"delete_message"`
+				ContinueResponse   bool `tfsdk:"continue_response"`
+				RegenerateResponse bool `tfsdk:"regenerate_response"`
+				RateResponse       bool `tfsdk:"rate_response"`
+				Share              bool `tfsdk:"share"`
+				Export             bool `tfsdk:"export"`
+				Stt                bool `tfsdk:"stt"`
+				Tts                bool `tfsdk:"tts"`
+				Call               bool `tfsdk:"call"`
+				MultipleModels     bool `tfsdk:"multiple_models"`
+				TemporaryEnforced  bool `tfsdk:"temporary_enforced"`
 			} `tfsdk:"chat"`
+			Sharing struct {
+				PublicModels    bool `tfsdk:"public_models"`
+				PublicKnowledge bool `tfsdk:"public_knowledge"`
+				PublicPrompts   bool `tfsdk:"public_prompts"`
+				PublicTools     bool `tfsdk:"public_tools"`
+				PublicNotes     bool `tfsdk:"public_notes"`
+			} `tfsdk:"sharing"`
+			Features struct {
+				DirectToolServers bool `tfsdk:"direct_tool_servers"`
+				WebSearch         bool `tfsdk:"web_search"`
+				ImageGeneration   bool `tfsdk:"image_generation"`
+				CodeInterpreter   bool `tfsdk:"code_interpreter"`
+				Notes             bool `tfsdk:"notes"`
+			} `tfsdk:"features"`
 		}
 		diags = plan.Permissions.As(ctx, &permissions, basetypes.ObjectAsOptions{})
 		resp.Diagnostics.Append(diags...)
@@ -356,10 +561,39 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 				Tools:     permissions.Workspace.Tools,
 			},
 			Chat: groups.ChatPermissions{
-				FileUpload: permissions.Chat.FileUpload,
-				Delete:     permissions.Chat.Delete,
-				Edit:       permissions.Chat.Edit,
-				Temporary:  permissions.Chat.Temporary,
+				FileUpload:         permissions.Chat.FileUpload,
+				Delete:             permissions.Chat.Delete,
+				Edit:               permissions.Chat.Edit,
+				Temporary:          permissions.Chat.Temporary,
+				Controls:           permissions.Chat.Controls,
+				Valves:             permissions.Chat.Valves,
+				SystemPrompt:       permissions.Chat.SystemPrompt,
+				Params:             permissions.Chat.Params,
+				DeleteMessage:      permissions.Chat.DeleteMessage,
+				ContinueResponse:   permissions.Chat.ContinueResponse,
+				RegenerateResponse: permissions.Chat.RegenerateResponse,
+				RateResponse:       permissions.Chat.RateResponse,
+				Share:              permissions.Chat.Share,
+				Export:             permissions.Chat.Export,
+				Stt:                permissions.Chat.Stt,
+				Tts:                permissions.Chat.Tts,
+				Call:               permissions.Chat.Call,
+				MultipleModels:     permissions.Chat.MultipleModels,
+				TemporaryEnforced:  permissions.Chat.TemporaryEnforced,
+			},
+			Sharing: groups.SharingPermissions{
+				PublicModels:    permissions.Sharing.PublicModels,
+				PublicKnowledge: permissions.Sharing.PublicKnowledge,
+				PublicPrompts:   permissions.Sharing.PublicPrompts,
+				PublicTools:     permissions.Sharing.PublicTools,
+				PublicNotes:     permissions.Sharing.PublicNotes,
+			},
+			Features: groups.FeaturesPermissions{
+				DirectToolServers: permissions.Features.DirectToolServers,
+				WebSearch:         permissions.Features.WebSearch,
+				ImageGeneration:   permissions.Features.ImageGeneration,
+				CodeInterpreter:   permissions.Features.CodeInterpreter,
+				Notes:             permissions.Features.Notes,
 			},
 		}
 	}

@@ -7,16 +7,17 @@ import (
 	"context"
 	"os"
 
+	"terraform-provider-openwebui/internal/provider/client/groups"
+	"terraform-provider-openwebui/internal/provider/client/knowledge"
+	"terraform-provider-openwebui/internal/provider/client/models"
+	"terraform-provider-openwebui/internal/provider/client/users"
+
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/coalition-sre/terraform-provider-openwebui/internal/provider/client/groups"
-	"github.com/coalition-sre/terraform-provider-openwebui/internal/provider/client/knowledge"
-	"github.com/coalition-sre/terraform-provider-openwebui/internal/provider/client/models"
-	"github.com/coalition-sre/terraform-provider-openwebui/internal/provider/client/users"
 )
 
 var (
