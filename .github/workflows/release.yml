@@ -1,16 +1,16 @@
 name: Build Release
 
 on:
-  push:
-    #tags:
-    #  - 'v*'
+  release:
+    types: [published]
 
 permissions:
   contents: write
   packages: write
 
 env:
-  VERSION: "v0.0.1"
+  #VERSION: "v0.0.1"
+  VERSION: ${{ github.event.release.tag_name }}
 
 jobs:
   build:
