@@ -80,10 +80,45 @@ func (d *GroupDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, 
 					"chat": schema.SingleNestedAttribute{
 						Computed: true,
 						Attributes: map[string]schema.Attribute{
-							"file_upload": schema.BoolAttribute{Computed: true},
-							"delete":      schema.BoolAttribute{Computed: true},
-							"edit":        schema.BoolAttribute{Computed: true},
-							"temporary":   schema.BoolAttribute{Computed: true},
+							"file_upload":         schema.BoolAttribute{Computed: true},
+							"delete":              schema.BoolAttribute{Computed: true},
+							"edit":                schema.BoolAttribute{Computed: true},
+							"temporary":           schema.BoolAttribute{Computed: true},
+							"controls":            schema.BoolAttribute{Required: true},
+							"valves":              schema.BoolAttribute{Required: true},
+							"system_prompt":       schema.BoolAttribute{Required: true},
+							"params":              schema.BoolAttribute{Required: true},
+							"delete_message":      schema.BoolAttribute{Required: true},
+							"continue_response":   schema.BoolAttribute{Required: true},
+							"regenerate_response": schema.BoolAttribute{Required: true},
+							"rate_response":       schema.BoolAttribute{Required: true},
+							"share":               schema.BoolAttribute{Required: true},
+							"export":              schema.BoolAttribute{Required: true},
+							"stt":                 schema.BoolAttribute{Required: true},
+							"tts":                 schema.BoolAttribute{Required: true},
+							"call":                schema.BoolAttribute{Required: true},
+							"multiple_models":     schema.BoolAttribute{Required: true},
+							"temporary_enforced":  schema.BoolAttribute{Required: true},
+						},
+					},
+					"sharing": schema.SingleNestedAttribute{
+						Computed: true,
+						Attributes: map[string]schema.Attribute{
+							"public_models":    schema.BoolAttribute{Required: true},
+							"public_knowledge": schema.BoolAttribute{Required: true},
+							"public_prompts":   schema.BoolAttribute{Required: true},
+							"public_tools":     schema.BoolAttribute{Required: true},
+							"public_notes":     schema.BoolAttribute{Required: true},
+						},
+					},
+					"features": schema.SingleNestedAttribute{
+						Computed: true,
+						Attributes: map[string]schema.Attribute{
+							"direct_tool_servers": schema.BoolAttribute{Required: true},
+							"web_search":          schema.BoolAttribute{Required: true},
+							"image_generation":    schema.BoolAttribute{Required: true},
+							"code_interpreter":    schema.BoolAttribute{Required: true},
+							"notes":               schema.BoolAttribute{Required: true},
 						},
 					},
 				},
@@ -170,10 +205,41 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 				}
 
 				chatAttrs := map[string]attr.Value{
-					"file_upload": types.BoolValue(group.Permissions.Chat.FileUpload),
-					"delete":      types.BoolValue(group.Permissions.Chat.Delete),
-					"edit":        types.BoolValue(group.Permissions.Chat.Edit),
-					"temporary":   types.BoolValue(group.Permissions.Chat.Temporary),
+					"file_upload":         types.BoolValue(group.Permissions.Chat.FileUpload),
+					"delete":              types.BoolValue(group.Permissions.Chat.Delete),
+					"edit":                types.BoolValue(group.Permissions.Chat.Edit),
+					"temporary":           types.BoolValue(group.Permissions.Chat.Temporary),
+					"controls":            types.BoolValue(group.Permissions.Chat.Controls),
+					"valves":              types.BoolValue(group.Permissions.Chat.Valves),
+					"system_prompt":       types.BoolValue(group.Permissions.Chat.SystemPrompt),
+					"params":              types.BoolValue(group.Permissions.Chat.Params),
+					"delete_message":      types.BoolValue(group.Permissions.Chat.DeleteMessage),
+					"continue_response":   types.BoolValue(group.Permissions.Chat.ContinueResponse),
+					"regenerate_response": types.BoolValue(group.Permissions.Chat.RegenerateResponse),
+					"rate_response":       types.BoolValue(group.Permissions.Chat.RateResponse),
+					"share":               types.BoolValue(group.Permissions.Chat.Share),
+					"export":              types.BoolValue(group.Permissions.Chat.Export),
+					"stt":                 types.BoolValue(group.Permissions.Chat.Stt),
+					"tts":                 types.BoolValue(group.Permissions.Chat.Tts),
+					"call":                types.BoolValue(group.Permissions.Chat.Call),
+					"multiple_models":     types.BoolValue(group.Permissions.Chat.MultipleModels),
+					"temporary_enforced":  types.BoolValue(group.Permissions.Chat.TemporaryEnforced),
+				}
+
+				sharingAttrs := map[string]attr.Value{
+					"public_models":    types.BoolValue(group.Permissions.Sharing.PublicModels),
+					"public_knowledge": types.BoolValue(group.Permissions.Sharing.PublicKnowledge),
+					"public_prompts":   types.BoolValue(group.Permissions.Sharing.PublicPrompts),
+					"public_tools":     types.BoolValue(group.Permissions.Sharing.PublicTools),
+					"public_notes":     types.BoolValue(group.Permissions.Sharing.PublicNotes),
+				}
+
+				featureAttrs := map[string]attr.Value{
+					"direct_tool_servers": types.BoolValue(group.Permissions.Features.DirectToolServers),
+					"web_search":          types.BoolValue(group.Permissions.Features.WebSearch),
+					"image_generation":    types.BoolValue(group.Permissions.Features.ImageGeneration),
+					"code_interpreter":    types.BoolValue(group.Permissions.Features.CodeInterpreter),
+					"notes":               types.BoolValue(group.Permissions.Features.Notes),
 				}
 
 				workspaceObj, diags := types.ObjectValue(
@@ -192,12 +258,57 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 
 				chatObj, diags := types.ObjectValue(
 					map[string]attr.Type{
-						"file_upload": types.BoolType,
-						"delete":      types.BoolType,
-						"edit":        types.BoolType,
-						"temporary":   types.BoolType,
+						"file_upload":         types.BoolType,
+						"delete":              types.BoolType,
+						"edit":                types.BoolType,
+						"temporary":           types.BoolType,
+						"controls":            types.BoolType,
+						"valves":              types.BoolType,
+						"system_prompt":       types.BoolType,
+						"params":              types.BoolType,
+						"delete_message":      types.BoolType,
+						"continue_response":   types.BoolType,
+						"regenerate_response": types.BoolType,
+						"rate_response":       types.BoolType,
+						"share":               types.BoolType,
+						"export":              types.BoolType,
+						"stt":                 types.BoolType,
+						"tts":                 types.BoolType,
+						"call":                types.BoolType,
+						"multiple_models":     types.BoolType,
+						"temporary_enforced":  types.BoolType,
 					},
 					chatAttrs,
+				)
+				resp.Diagnostics.Append(diags...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				sharingObj, diags := types.ObjectValue(
+					map[string]attr.Type{
+						"public_models":    types.BoolType,
+						"public_knowledge": types.BoolType,
+						"public_prompts":   types.BoolType,
+						"public_tools":     types.BoolType,
+						"public_notes":     types.BoolType,
+					},
+					sharingAttrs,
+				)
+				resp.Diagnostics.Append(diags...)
+				if resp.Diagnostics.HasError() {
+					return
+				}
+
+				featureObj, diags := types.ObjectValue(
+					map[string]attr.Type{
+						"direct_tool_servers": types.BoolType,
+						"web_search":          types.BoolType,
+						"image_generation":    types.BoolType,
+						"code_interpreter":    types.BoolType,
+						"notes":               types.BoolType,
+					},
+					featureAttrs,
 				)
 				resp.Diagnostics.Append(diags...)
 				if resp.Diagnostics.HasError() {
@@ -208,10 +319,14 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 					map[string]attr.Type{
 						"workspace": types.ObjectType{AttrTypes: workspaceObj.AttributeTypes(ctx)},
 						"chat":      types.ObjectType{AttrTypes: chatObj.AttributeTypes(ctx)},
+						"sharing":   types.ObjectType{AttrTypes: sharingObj.AttributeTypes(ctx)},
+						"features":  types.ObjectType{AttrTypes: featureObj.AttributeTypes(ctx)},
 					},
 					map[string]attr.Value{
 						"workspace": workspaceObj,
 						"chat":      chatObj,
+						"sharing":   sharingObj,
+						"features":  featureObj,
 					},
 				)
 				resp.Diagnostics.Append(diags...)
