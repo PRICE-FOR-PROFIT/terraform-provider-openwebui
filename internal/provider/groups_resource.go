@@ -181,20 +181,30 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
+	// Add users if provided
+	if !plan.UserIDs.IsNull() && len(plan.UserIDs.Elements()) > 0 {
+		var userIDs []string
+		diags = plan.UserIDs.ElementsAs(ctx, &userIDs, false)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+
+		err = r.client.AddUsers(createdGroup.ID, userIDs)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error adding users to group",
+				fmt.Sprintf("Could not add users to group %s: %s", createdGroup.ID, err),
+			)
+			return
+		}
+	}
+
 	// Now prepare the update with all the additional information
 	updateGroup := &groups.Group{
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
 	}
-
-	// Handle user IDs
-	var userIDs []string
-	diags = plan.UserIDs.ElementsAs(ctx, &userIDs, false)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	updateGroup.UserIDs = userIDs
 
 	// Handle permissions
 	if !plan.Permissions.IsNull() {
@@ -494,14 +504,6 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
 	}
-
-	var userIDs []string
-	diags = plan.UserIDs.ElementsAs(ctx, &userIDs, false)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	group.UserIDs = userIDs
 
 	if !plan.Permissions.IsNull() {
 		var permissions struct {
