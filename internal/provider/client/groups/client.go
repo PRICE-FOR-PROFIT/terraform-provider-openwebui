@@ -84,7 +84,18 @@ func (c *Client) Get(id string) (*Group, error) {
 }
 
 func (c *Client) Update(id string, group *Group) (*Group, error) {
-	body, err := json.Marshal(group)
+	// Create update payload without user_ids (API ignores it)
+	updatePayload := struct {
+		Name        string            `json:"name"`
+		Description string            `json:"description"`
+		Permissions *GroupPermissions `json:"permissions,omitempty"`
+	}{
+		Name:        group.Name,
+		Description: group.Description,
+		Permissions: group.Permissions,
+	}
+
+	body, err := json.Marshal(updatePayload)
 	if err != nil {
 		return nil, err
 	}
