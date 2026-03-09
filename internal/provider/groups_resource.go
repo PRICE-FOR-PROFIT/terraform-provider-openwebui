@@ -338,14 +338,29 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	state.Name = types.StringValue(group.Name)
 	state.Description = types.StringValue(group.Description)
 
-	sort.Strings(group.UserIDs)
-	userIDs, diags := types.ListValueFrom(ctx, types.StringType, group.UserIDs)
+	// Get users separately
+	users, err := r.client.GetUsers(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading group users",
+			fmt.Sprintf("Could not read users for group ID %s: %s", state.ID.ValueString(), err),
+		)
+		return
+	}
 
+	// Extract user IDs
+	userIDs := make([]string, len(users))
+	for i, user := range users {
+		userIDs[i] = user.ID
+	}
+
+	sort.Strings(userIDs)
+	userIDsList, diags := types.ListValueFrom(ctx, types.StringType, userIDs)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	state.UserIDs = userIDs
+	state.UserIDs = userIDsList
 
 	if group.Permissions != nil {
 		workspaceAttrs := map[string]attr.Value{
