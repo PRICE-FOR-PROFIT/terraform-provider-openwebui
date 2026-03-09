@@ -191,3 +191,36 @@ func (c *Client) GetUsers(id string) ([]User, error) {
 
 	return users, nil
 }
+
+func (c *Client) AddUsers(id string, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil // No-op for empty list
+	}
+
+	form := UserIdsForm{UserIDs: userIDs}
+	body, err := json.Marshal(form)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users/add", c.BaseURL, id), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
