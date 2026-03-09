@@ -96,3 +96,34 @@ func TestAddUsers(t *testing.T) {
 		t.Fatalf("AddUsers returned error: %v", err)
 	}
 }
+
+func TestRemoveUsers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/groups/id/test-group-id/users/remove" {
+			t.Errorf("Expected path '/api/v1/groups/id/test-group-id/users/remove', got %s", r.URL.Path)
+		}
+		if r.Method != "POST" {
+			t.Errorf("Expected POST method, got %s", r.Method)
+		}
+
+		var form UserIdsForm
+		if err := json.NewDecoder(r.Body).Decode(&form); err != nil {
+			t.Fatalf("Failed to decode request body: %v", err)
+		}
+
+		if len(form.UserIDs) != 1 {
+			t.Errorf("Expected 1 user ID, got %d", len(form.UserIDs))
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(&Group{ID: "test-group-id"})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	err := client.RemoveUsers("test-group-id", []string{"user-1"})
+
+	if err != nil {
+		t.Fatalf("RemoveUsers returned error: %v", err)
+	}
+}
