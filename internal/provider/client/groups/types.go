@@ -1,4 +1,5 @@
-// Copyright (c) HashiCorp, Inc.
+// Copyright (c) Coalition, Inc.
+// SPDX-License-Identifier: MIT
 
 package groups
 
