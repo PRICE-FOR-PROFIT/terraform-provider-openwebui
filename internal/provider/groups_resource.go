@@ -515,6 +515,78 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
+	// Get current users to calculate diff
+	currentUsers, err := r.client.GetUsers(plan.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading current group users",
+			fmt.Sprintf("Could not read current users for group ID %s: %s", plan.ID.ValueString(), err),
+		)
+		return
+	}
+
+	// Extract current user IDs
+	currentUserIDs := make(map[string]bool)
+	for _, user := range currentUsers {
+		currentUserIDs[user.ID] = true
+	}
+
+	// Get planned user IDs
+	var plannedUserIDs []string
+	if !plan.UserIDs.IsNull() {
+		diags = plan.UserIDs.ElementsAs(ctx, &plannedUserIDs, false)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+	}
+
+	plannedUserIDsMap := make(map[string]bool)
+	for _, id := range plannedUserIDs {
+		plannedUserIDsMap[id] = true
+	}
+
+	// Calculate diff
+	var toRemove []string
+	var toAdd []string
+
+	for id := range currentUserIDs {
+		if !plannedUserIDsMap[id] {
+			toRemove = append(toRemove, id)
+		}
+	}
+
+	for _, id := range plannedUserIDs {
+		if !currentUserIDs[id] {
+			toAdd = append(toAdd, id)
+		}
+	}
+
+	// Remove users first (safer to remove before adding)
+	if len(toRemove) > 0 {
+		err = r.client.RemoveUsers(plan.ID.ValueString(), toRemove)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error removing users from group",
+				fmt.Sprintf("Could not remove users from group ID %s: %s", plan.ID.ValueString(), err),
+			)
+			return
+		}
+	}
+
+	// Add new users
+	if len(toAdd) > 0 {
+		err = r.client.AddUsers(plan.ID.ValueString(), toAdd)
+		if err != nil {
+			resp.Diagnostics.AddError(
+				"Error adding users to group",
+				fmt.Sprintf("Could not add users to group ID %s: %s", plan.ID.ValueString(), err),
+			)
+			return
+		}
+	}
+
+	// Update group metadata (name, description, permissions)
 	group := &groups.Group{
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
