@@ -7,9 +7,13 @@ import (
 	"context"
 	"os"
 
+	"terraform-provider-openwebui/internal/provider/client/configs"
+	"terraform-provider-openwebui/internal/provider/client/functions"
 	"terraform-provider-openwebui/internal/provider/client/groups"
 	"terraform-provider-openwebui/internal/provider/client/knowledge"
 	"terraform-provider-openwebui/internal/provider/client/models"
+	"terraform-provider-openwebui/internal/provider/client/prompts"
+	"terraform-provider-openwebui/internal/provider/client/tools"
 	"terraform-provider-openwebui/internal/provider/client/users"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -102,6 +106,10 @@ func (p *OpenWebUIProvider) Configure(ctx context.Context, req provider.Configur
 	knowledgeClient := knowledge.NewClient(config.Endpoint.ValueString(), config.Token.ValueString())
 	modelsClient := models.NewClient(config.Endpoint.ValueString(), config.Token.ValueString())
 	usersClient := users.NewClient(config.Endpoint.ValueString(), config.Token.ValueString())
+	toolsClient := tools.NewClient(config.Endpoint.ValueString(), config.Token.ValueString())
+	functionsClient := functions.NewClient(config.Endpoint.ValueString(), config.Token.ValueString())
+	promptsClient := prompts.NewClient(config.Endpoint.ValueString(), config.Token.ValueString())
+	configsClient := configs.NewClient(config.Endpoint.ValueString(), config.Token.ValueString())
 
 	// Create a map to store all clients
 	clients := map[string]interface{}{
@@ -109,6 +117,10 @@ func (p *OpenWebUIProvider) Configure(ctx context.Context, req provider.Configur
 		"knowledge": knowledgeClient,
 		"models":    modelsClient,
 		"users":     usersClient,
+		"tools":     toolsClient,
+		"functions": functionsClient,
+		"prompts":   promptsClient,
+		"configs":   configsClient,
 	}
 
 	resp.DataSourceData = clients
@@ -121,6 +133,9 @@ func (p *OpenWebUIProvider) DataSources(_ context.Context) []func() datasource.D
 		NewKnowledgeDataSource,
 		NewModelDataSource,
 		NewUserDataSource,
+		NewToolDataSource,
+		NewFunctionDataSource,
+		NewPromptDataSource,
 	}
 }
 
@@ -129,6 +144,12 @@ func (p *OpenWebUIProvider) Resources(_ context.Context) []func() resource.Resou
 		NewGroupResource,
 		NewKnowledgeResource,
 		NewModelResource,
+		NewToolResource,
+		NewFunctionResource,
+		NewPromptResource,
+		NewConnectionsConfigResource,
+		NewToolServersConfigResource,
+		NewModelsConfigResource,
 	}
 }
 

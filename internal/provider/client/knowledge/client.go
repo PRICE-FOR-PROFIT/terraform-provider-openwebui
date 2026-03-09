@@ -9,6 +9,12 @@ import (
 	"net/http"
 )
 
+const (
+	basePath   = "/api/v1/knowledge"
+	createPath = basePath + "/create"
+	listPath   = basePath + "/"
+)
+
 // Client implements KnowledgeClient interface
 type Client struct {
 	endpoint string
@@ -30,7 +36,7 @@ func (c *Client) Create(form *KnowledgeForm) (*KnowledgeResponse, error) {
 		return nil, fmt.Errorf("error marshaling request: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/knowledge/create", c.endpoint), bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s%s", c.endpoint, createPath), bytes.NewBuffer(body))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
@@ -58,7 +64,7 @@ func (c *Client) Create(form *KnowledgeForm) (*KnowledgeResponse, error) {
 
 // Get gets a knowledge base by ID
 func (c *Client) Get(id string) (*KnowledgeResponse, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/knowledge/%s", c.endpoint, id), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s%s/%s", c.endpoint, basePath, id), nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
@@ -85,7 +91,7 @@ func (c *Client) Get(id string) (*KnowledgeResponse, error) {
 
 // List gets all knowledge bases
 func (c *Client) List() ([]KnowledgeResponse, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/knowledge/", c.endpoint), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s%s", c.endpoint, listPath), nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
@@ -117,7 +123,7 @@ func (c *Client) Update(id string, form *KnowledgeForm) (*KnowledgeResponse, err
 		return nil, fmt.Errorf("error marshaling request: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/knowledge/%s/update", c.endpoint, id), bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s%s/%s/update", c.endpoint, basePath, id), bytes.NewBuffer(body))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
@@ -145,7 +151,7 @@ func (c *Client) Update(id string, form *KnowledgeForm) (*KnowledgeResponse, err
 
 // Delete deletes a knowledge base
 func (c *Client) Delete(id string) error {
-	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s/knowledge/%s/delete", c.endpoint, id), nil)
+	req, err := http.NewRequest("DELETE", fmt.Sprintf("%s%s/%s/delete", c.endpoint, basePath, id), nil)
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
 	}
