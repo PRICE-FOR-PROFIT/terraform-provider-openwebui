@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -187,13 +188,29 @@ func (d *GroupDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 			data.CreatedAt = types.Int64Value(group.CreatedAt)
 			data.UpdatedAt = types.Int64Value(group.UpdatedAt)
 
-			// Handle user IDs
-			userIDs, diags := types.ListValueFrom(ctx, types.StringType, group.UserIDs)
+			// Get users separately
+			users, err := d.client.GetUsers(group.ID)
+			if err != nil {
+				resp.Diagnostics.AddError(
+					"Error reading group users",
+					fmt.Sprintf("Could not read users for group ID %s: %s", group.ID, err),
+				)
+				return
+			}
+
+			// Extract user IDs
+			userIDs := make([]string, len(users))
+			for i, user := range users {
+				userIDs[i] = user.ID
+			}
+
+			sort.Strings(userIDs)
+			userIDsList, diags := types.ListValueFrom(ctx, types.StringType, userIDs)
 			resp.Diagnostics.Append(diags...)
 			if resp.Diagnostics.HasError() {
 				return
 			}
-			data.UserIDs = userIDs
+			data.UserIDs = userIDsList
 
 			// Handle permissions
 			if group.Permissions != nil {
