@@ -164,3 +164,30 @@ func (c *Client) List() ([]Group, error) {
 
 	return groups, nil
 }
+
+func (c *Client) GetUsers(id string) ([]User, error) {
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users", c.BaseURL, id), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+	}
+
+	var users []User
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
