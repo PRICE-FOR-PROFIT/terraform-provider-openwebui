@@ -1,163 +1,469 @@
+# Groups API Migration Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Migrate group user management from deprecated user_ids field to new /users, /users/add, and /users/remove endpoints.
+
+**Architecture:** Add three new client methods (GetUsers, AddUsers, RemoveUsers) and orchestrate calls in resource CRUD operations to handle user membership separately from group metadata.
+
+**Tech Stack:** Go, Terraform Plugin Framework, Open WebUI REST API
+
+---
+
+## Task 1: Add User type to client types
+
+**Files:**
+- Modify: `internal/provider/client/groups/types.go:16`
+
+**Step 1: Add User struct after Group struct**
+
+Add this code after the Group struct definition:
+
+```go
+type User struct {
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Email           string   `json:"email"`
+	Role            string   `json:"role"`
+	StatusEmoji     *string  `json:"status_emoji"`
+	StatusMessage   *string  `json:"status_message"`
+	StatusExpiresAt *int64   `json:"status_expires_at"`
+	Bio             *string  `json:"bio"`
+	Groups          []string `json:"groups"`
+	IsActive        bool     `json:"is_active"`
+}
+
+type UserIdsForm struct {
+	UserIDs []string `json:"user_ids"`
+}
+```
+
+**Step 2: Verify code compiles**
+
+Run: `go build`
+Expected: Successful compilation with no errors
+
+**Step 3: Commit**
+
+```bash
+git add internal/provider/client/groups/types.go
+git commit -m "feat(groups): add User and UserIdsForm types for new API"
+```
+
+---
+
+## Task 2: Add GetUsers client method
+
+**Files:**
+- Modify: `internal/provider/client/groups/client.go:166`
+
+**Step 1: Write test for GetUsers**
+
+Create: `internal/provider/client/groups/client_test.go`
+
+```go
 // Copyright (c) Coalition, Inc
 // SPDX-License-Identifier: MIT
 
-package provider
+package groups
 
 import (
-	"context"
-	"fmt"
-	"sort"
-
-	"github.com/hashicorp/terraform-plugin-framework/attr"
-	"github.com/hashicorp/terraform-plugin-framework/path"
-	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
-
-	"terraform-provider-openwebui/internal/provider/client/groups"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
 )
 
-var (
-	_ resource.Resource                = &GroupResource{}
-	_ resource.ResourceWithImportState = &GroupResource{}
-)
-
-type GroupResource struct {
-	client *groups.Client
-}
-
-type GroupResourceModel struct {
-	ID          types.String `tfsdk:"id"`
-	Name        types.String `tfsdk:"name"`
-	Description types.String `tfsdk:"description"`
-	UserIDs     types.List   `tfsdk:"user_ids"`
-	Permissions types.Object `tfsdk:"permissions"`
-}
-
-func NewGroupResource() resource.Resource {
-	return &GroupResource{}
-}
-
-func (r *GroupResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
-	resp.TypeName = req.ProviderTypeName + "_group"
-}
-
-func (r *GroupResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
-	resp.Schema = schema.Schema{
-		Description: "Manages a group in OpenWebUI.",
-		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Description: "Identifier of the group.",
-				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"name": schema.StringAttribute{
-				Description: "Name of the group.",
-				Required:    true,
-			},
-			"description": schema.StringAttribute{
-				Description: "Description of the group.",
-				Optional:    true,
-			},
-			"user_ids": schema.ListAttribute{
-				Description: "List of user IDs in the group.",
-				Optional:    true,
-				ElementType: types.StringType,
-			},
-			"permissions": schema.SingleNestedAttribute{
-				Description: "Permissions for the group.",
-				Optional:    true,
-				Attributes: map[string]schema.Attribute{
-					"workspace": schema.SingleNestedAttribute{
-						Required: true,
-						Attributes: map[string]schema.Attribute{
-							"models":    schema.BoolAttribute{Required: true},
-							"knowledge": schema.BoolAttribute{Required: true},
-							"prompts":   schema.BoolAttribute{Required: true},
-							"tools":     schema.BoolAttribute{Required: true},
-						},
-					},
-					"chat": schema.SingleNestedAttribute{
-						Required: true,
-						Attributes: map[string]schema.Attribute{
-							"file_upload":         schema.BoolAttribute{Required: true},
-							"delete":              schema.BoolAttribute{Required: true},
-							"edit":                schema.BoolAttribute{Required: true},
-							"temporary":           schema.BoolAttribute{Required: true},
-							"controls":            schema.BoolAttribute{Required: true},
-							"valves":              schema.BoolAttribute{Required: true},
-							"system_prompt":       schema.BoolAttribute{Required: true},
-							"params":              schema.BoolAttribute{Required: true},
-							"delete_message":      schema.BoolAttribute{Required: true},
-							"continue_response":   schema.BoolAttribute{Required: true},
-							"regenerate_response": schema.BoolAttribute{Required: true},
-							"rate_response":       schema.BoolAttribute{Required: true},
-							"share":               schema.BoolAttribute{Required: true},
-							"export":              schema.BoolAttribute{Required: true},
-							"stt":                 schema.BoolAttribute{Required: true},
-							"tts":                 schema.BoolAttribute{Required: true},
-							"call":                schema.BoolAttribute{Required: true},
-							"multiple_models":     schema.BoolAttribute{Required: true},
-							"temporary_enforced":  schema.BoolAttribute{Required: true},
-						},
-					},
-					"sharing": schema.SingleNestedAttribute{
-						Required: true,
-						Attributes: map[string]schema.Attribute{
-							"public_models":    schema.BoolAttribute{Required: true},
-							"public_knowledge": schema.BoolAttribute{Required: true},
-							"public_prompts":   schema.BoolAttribute{Required: true},
-							"public_tools":     schema.BoolAttribute{Required: true},
-							"public_notes":     schema.BoolAttribute{Required: true},
-						},
-					},
-					"features": schema.SingleNestedAttribute{
-						Required: true,
-						Attributes: map[string]schema.Attribute{
-							"direct_tool_servers": schema.BoolAttribute{Required: true},
-							"web_search":          schema.BoolAttribute{Required: true},
-							"image_generation":    schema.BoolAttribute{Required: true},
-							"code_interpreter":    schema.BoolAttribute{Required: true},
-							"notes":               schema.BoolAttribute{Required: true},
-						},
-					},
-				},
-			},
+func TestGetUsers(t *testing.T) {
+	mockUsers := []User{
+		{
+			ID:       "user-1",
+			Name:     "Test User",
+			Email:    "test@example.com",
+			Role:     "user",
+			IsActive: true,
+			Groups:   []string{},
+		},
+		{
+			ID:       "user-2",
+			Name:     "Test Admin",
+			Email:    "admin@example.com",
+			Role:     "admin",
+			IsActive: true,
+			Groups:   []string{},
 		},
 	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/groups/id/test-group-id/users" {
+			t.Errorf("Expected path '/api/v1/groups/id/test-group-id/users', got %s", r.URL.Path)
+		}
+		if r.Method != "POST" {
+			t.Errorf("Expected POST method, got %s", r.Method)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			t.Errorf("Expected Bearer token, got %s", r.Header.Get("Authorization"))
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(mockUsers)
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	users, err := client.GetUsers("test-group-id")
+
+	if err != nil {
+		t.Fatalf("GetUsers returned error: %v", err)
+	}
+
+	if len(users) != 2 {
+		t.Errorf("Expected 2 users, got %d", len(users))
+	}
+
+	if users[0].ID != "user-1" {
+		t.Errorf("Expected first user ID 'user-1', got '%s'", users[0].ID)
+	}
+
+	if users[1].Email != "admin@example.com" {
+		t.Errorf("Expected second user email 'admin@example.com', got '%s'", users[1].Email)
+	}
 }
+```
 
-func (r *GroupResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	if req.ProviderData == nil {
-		return
+**Step 2: Run test to verify it fails**
+
+Run: `go test ./internal/provider/client/groups/... -v -run TestGetUsers`
+Expected: FAIL with "client.GetUsers undefined"
+
+**Step 3: Implement GetUsers method**
+
+Add to `internal/provider/client/groups/client.go` after the List method:
+
+```go
+func (c *Client) GetUsers(id string) ([]User, error) {
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users", c.BaseURL, id), nil)
+	if err != nil {
+		return nil, err
 	}
 
-	clients, ok := req.ProviderData.(map[string]interface{})
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected map[string]interface{}, got: %T. Please report this issue to the provider developers.", req.ProviderData),
-		)
-		return
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
 	}
 
-	client, ok := clients["groups"].(*groups.Client)
-	if !ok {
-		resp.Diagnostics.AddError(
-			"Unexpected Resource Configure Type",
-			fmt.Sprintf("Expected *groups.Client, got: %T. Please report this issue to the provider developers.", clients["groups"]),
-		)
-		return
+	var users []User
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+		return nil, err
 	}
 
-	r.client = client
+	return users, nil
 }
+```
 
+**Step 4: Run test to verify it passes**
+
+Run: `go test ./internal/provider/client/groups/... -v -run TestGetUsers`
+Expected: PASS
+
+**Step 5: Commit**
+
+```bash
+git add internal/provider/client/groups/client.go internal/provider/client/groups/client_test.go
+git commit -m "feat(groups): add GetUsers client method"
+```
+
+---
+
+## Task 3: Add AddUsers client method
+
+**Files:**
+- Modify: `internal/provider/client/groups/client.go`
+- Modify: `internal/provider/client/groups/client_test.go`
+
+**Step 1: Write test for AddUsers**
+
+Add to `internal/provider/client/groups/client_test.go`:
+
+```go
+func TestAddUsers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/groups/id/test-group-id/users/add" {
+			t.Errorf("Expected path '/api/v1/groups/id/test-group-id/users/add', got %s", r.URL.Path)
+		}
+		if r.Method != "POST" {
+			t.Errorf("Expected POST method, got %s", r.Method)
+		}
+
+		var form UserIdsForm
+		if err := json.NewDecoder(r.Body).Decode(&form); err != nil {
+			t.Fatalf("Failed to decode request body: %v", err)
+		}
+
+		if len(form.UserIDs) != 2 {
+			t.Errorf("Expected 2 user IDs, got %d", len(form.UserIDs))
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(&Group{ID: "test-group-id"})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	err := client.AddUsers("test-group-id", []string{"user-1", "user-2"})
+
+	if err != nil {
+		t.Fatalf("AddUsers returned error: %v", err)
+	}
+}
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `go test ./internal/provider/client/groups/... -v -run TestAddUsers`
+Expected: FAIL with "client.AddUsers undefined"
+
+**Step 3: Implement AddUsers method**
+
+Add to `internal/provider/client/groups/client.go` after GetUsers:
+
+```go
+func (c *Client) AddUsers(id string, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil // No-op for empty list
+	}
+
+	form := UserIdsForm{UserIDs: userIDs}
+	body, err := json.Marshal(form)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users/add", c.BaseURL, id), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+```
+
+**Step 4: Run test to verify it passes**
+
+Run: `go test ./internal/provider/client/groups/... -v -run TestAddUsers`
+Expected: PASS
+
+**Step 5: Commit**
+
+```bash
+git add internal/provider/client/groups/client.go internal/provider/client/groups/client_test.go
+git commit -m "feat(groups): add AddUsers client method"
+```
+
+---
+
+## Task 4: Add RemoveUsers client method
+
+**Files:**
+- Modify: `internal/provider/client/groups/client.go`
+- Modify: `internal/provider/client/groups/client_test.go`
+
+**Step 1: Write test for RemoveUsers**
+
+Add to `internal/provider/client/groups/client_test.go`:
+
+```go
+func TestRemoveUsers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/groups/id/test-group-id/users/remove" {
+			t.Errorf("Expected path '/api/v1/groups/id/test-group-id/users/remove', got %s", r.URL.Path)
+		}
+		if r.Method != "POST" {
+			t.Errorf("Expected POST method, got %s", r.Method)
+		}
+
+		var form UserIdsForm
+		if err := json.NewDecoder(r.Body).Decode(&form); err != nil {
+			t.Fatalf("Failed to decode request body: %v", err)
+		}
+
+		if len(form.UserIDs) != 1 {
+			t.Errorf("Expected 1 user ID, got %d", len(form.UserIDs))
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(&Group{ID: "test-group-id"})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "test-token")
+	err := client.RemoveUsers("test-group-id", []string{"user-1"})
+
+	if err != nil {
+		t.Fatalf("RemoveUsers returned error: %v", err)
+	}
+}
+```
+
+**Step 2: Run test to verify it fails**
+
+Run: `go test ./internal/provider/client/groups/... -v -run TestRemoveUsers`
+Expected: FAIL with "client.RemoveUsers undefined"
+
+**Step 3: Implement RemoveUsers method**
+
+Add to `internal/provider/client/groups/client.go` after AddUsers:
+
+```go
+func (c *Client) RemoveUsers(id string, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil // No-op for empty list
+	}
+
+	form := UserIdsForm{UserIDs: userIDs}
+	body, err := json.Marshal(form)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users/remove", c.BaseURL, id), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+```
+
+**Step 4: Run test to verify it passes**
+
+Run: `go test ./internal/provider/client/groups/... -v -run TestRemoveUsers`
+Expected: PASS
+
+**Step 5: Commit**
+
+```bash
+git add internal/provider/client/groups/client.go internal/provider/client/groups/client_test.go
+git commit -m "feat(groups): add RemoveUsers client method"
+```
+
+---
+
+## Task 5: Remove user_ids from Update method payload
+
+**Files:**
+- Modify: `internal/provider/client/groups/client.go:86-117`
+
+**Step 1: Create temporary struct for update payload**
+
+Replace the Update method implementation with:
+
+```go
+func (c *Client) Update(id string, group *Group) (*Group, error) {
+	// Create update payload without user_ids (API ignores it)
+	updatePayload := struct {
+		Name        string            `json:"name"`
+		Description string            `json:"description"`
+		Permissions *GroupPermissions `json:"permissions,omitempty"`
+	}{
+		Name:        group.Name,
+		Description: group.Description,
+		Permissions: group.Permissions,
+	}
+
+	body, err := json.Marshal(updatePayload)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/update", c.BaseURL, id), bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+	}
+
+	var updatedGroup Group
+	if err := json.NewDecoder(resp.Body).Decode(&updatedGroup); err != nil {
+		return nil, err
+	}
+
+	return &updatedGroup, nil
+}
+```
+
+**Step 2: Verify tests still pass**
+
+Run: `go test ./internal/provider/client/groups/... -v`
+Expected: All tests PASS
+
+**Step 3: Commit**
+
+```bash
+git add internal/provider/client/groups/client.go
+git commit -m "fix(groups): remove user_ids from Update payload"
+```
+
+---
+
+## Task 6: Update resource Create to use AddUsers
+
+**Files:**
+- Modify: `internal/provider/groups_resource.go:161-309`
+
+**Step 1: Modify Create method to call AddUsers**
+
+Update the Create method to orchestrate user addition:
+
+```go
 func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan GroupResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -200,7 +506,7 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		}
 	}
 
-	// Now prepare the update with all the additional information
+	// Now prepare the update with permissions
 	updateGroup := &groups.Group{
 		Name:        plan.Name.ValueString(),
 		Description: plan.Description.ValueString(),
@@ -302,7 +608,7 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		}
 	}
 
-	// Update the group with all the information
+	// Update the group with permissions
 	updatedGroup, err := r.client.Update(createdGroup.ID, updateGroup)
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -317,7 +623,32 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 }
+```
 
+**Step 2: Verify code compiles**
+
+Run: `go build`
+Expected: Successful compilation
+
+**Step 3: Commit**
+
+```bash
+git add internal/provider/groups_resource.go
+git commit -m "feat(groups): update Create to use AddUsers"
+```
+
+---
+
+## Task 7: Update resource Read to use GetUsers
+
+**Files:**
+- Modify: `internal/provider/groups_resource.go:311-483`
+
+**Step 1: Modify Read method to call GetUsers**
+
+Update the Read method to fetch users separately:
+
+```go
 func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state GroupResourceModel
 	diags := req.State.Get(ctx, &state)
@@ -506,7 +837,32 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }
+```
 
+**Step 2: Verify code compiles**
+
+Run: `go build`
+Expected: Successful compilation
+
+**Step 3: Commit**
+
+```bash
+git add internal/provider/groups_resource.go
+git commit -m "feat(groups): update Read to use GetUsers"
+```
+
+---
+
+## Task 8: Update resource Update with surgical diff
+
+**Files:**
+- Modify: `internal/provider/groups_resource.go:485-614`
+
+**Step 1: Implement Update method with user diffing**
+
+Replace the Update method:
+
+```go
 func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan GroupResourceModel
 	diags := req.Plan.Get(ctx, &plan)
@@ -701,25 +1057,143 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
 }
+```
 
-func (r *GroupResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var state GroupResourceModel
-	diags := req.State.Get(ctx, &state)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+**Step 2: Verify code compiles**
 
-	err := r.client.Delete(state.ID.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Error deleting group",
-			fmt.Sprintf("Could not delete group ID %s: %s", state.ID.ValueString(), err),
-		)
-		return
-	}
+Run: `go build`
+Expected: Successful compilation
+
+**Step 3: Commit**
+
+```bash
+git add internal/provider/groups_resource.go
+git commit -m "feat(groups): update Update with surgical user diff"
+```
+
+---
+
+## Task 9: Update groups data source to use GetUsers
+
+**Files:**
+- Modify: `internal/provider/groups_data_source.go`
+
+**Step 1: Read the current groups data source implementation**
+
+Run: `cat internal/provider/groups_data_source.go | grep -A 20 "func (d \*GroupsDataSource) Read"`
+
+**Step 2: Update Read method to use GetUsers for each group**
+
+Find the Read method and update the user ID fetching logic to call GetUsers:
+
+```go
+// In the loop where groups are processed, replace user_ids handling with:
+users, err := d.client.GetUsers(group.ID)
+if err != nil {
+	resp.Diagnostics.AddError(
+		"Error reading group users",
+		fmt.Sprintf("Could not read users for group ID %s: %s", group.ID, err),
+	)
+	return
 }
 
-func (r *GroupResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+userIDs := make([]string, len(users))
+for i, user := range users {
+	userIDs[i] = user.ID
 }
+sort.Strings(userIDs)
+```
+
+**Step 3: Verify code compiles**
+
+Run: `go build`
+Expected: Successful compilation
+
+**Step 4: Commit**
+
+```bash
+git add internal/provider/groups_data_source.go
+git commit -m "feat(groups): update data source to use GetUsers"
+```
+
+---
+
+## Task 10: Run all tests and verify
+
+**Files:**
+- N/A (testing phase)
+
+**Step 1: Run client tests**
+
+Run: `go test ./internal/provider/client/groups/... -v`
+Expected: All tests PASS
+
+**Step 2: Build provider**
+
+Run: `go build`
+Expected: Successful build with no errors
+
+**Step 3: Run provider tests (if available)**
+
+Run: `go test ./internal/provider/... -v`
+Expected: All tests PASS
+
+**Step 4: Final commit**
+
+```bash
+git add -A
+git commit -m "chore: groups API migration complete"
+```
+
+---
+
+## Testing Against Live API (Manual)
+
+After implementation, test against a live Open WebUI instance:
+
+1. Set environment variables:
+   ```bash
+   export OPENWEBUI_ENDPOINT="https://your-instance.com"
+   export OPENWEBUI_TOKEN="your-token"
+   ```
+
+2. Create test Terraform config:
+   ```hcl
+   terraform {
+     required_providers {
+       openwebui = {
+         source = "registry.terraform.io/insight2profit/openwebui"
+       }
+     }
+   }
+
+   resource "openwebui_group" "test" {
+     name        = "Test Group"
+     description = "API migration test"
+     user_ids    = ["user-id-1", "user-id-2"]
+
+     permissions {
+       workspace {
+         models    = false
+         knowledge = false
+         prompts   = false
+         tools     = false
+       }
+       # ... rest of permissions
+     }
+   }
+   ```
+
+3. Test operations:
+   - `terraform init`
+   - `terraform plan` - should show creation
+   - `terraform apply` - creates group with users
+   - Modify `user_ids` in config
+   - `terraform plan` - should show only user changes
+   - `terraform apply` - should only modify users (surgical diff)
+   - `terraform destroy` - cleans up
+
+4. Verify in Open WebUI UI:
+   - Group exists with correct users
+   - Member count matches
+   - Permissions are correct

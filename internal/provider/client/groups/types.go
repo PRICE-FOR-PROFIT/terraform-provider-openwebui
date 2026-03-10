@@ -1,4 +1,5 @@
-// Copyright (c) HashiCorp, Inc.
+// Copyright (c) Coalition, Inc.
+// SPDX-License-Identifier: MIT
 
 package groups
 
@@ -13,6 +14,23 @@ type Group struct {
 	UserIDs     []string               `json:"user_ids"`
 	CreatedAt   int64                  `json:"created_at"`
 	UpdatedAt   int64                  `json:"updated_at"`
+}
+
+type User struct {
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Email           string   `json:"email"`
+	Role            string   `json:"role"`
+	StatusEmoji     *string  `json:"status_emoji"`
+	StatusMessage   *string  `json:"status_message"`
+	StatusExpiresAt *int64   `json:"status_expires_at"`
+	Bio             *string  `json:"bio"`
+	Groups          []string `json:"groups"`
+	IsActive        bool     `json:"is_active"`
+}
+
+type UserIdsForm struct {
+	UserIDs []string `json:"user_ids"`
 }
 
 type GroupPermissions struct {
