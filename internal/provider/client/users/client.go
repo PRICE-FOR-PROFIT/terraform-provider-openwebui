@@ -9,12 +9,17 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sync"
 )
 
 // Client implements the users operations
 type Client struct {
 	endpoint string
 	token    string
+
+	usersMu     sync.Mutex
+	usersCache  []User
+	usersCached bool
 }
 
 // NewClient creates a new users client
@@ -25,8 +30,18 @@ func NewClient(endpoint, token string) *Client {
 	}
 }
 
-// GetUsers retrieves a list of users
+// GetUsers retrieves the list of users, fetching it from the API once per
+// Client instance and reusing the result on subsequent calls. The provider
+// shares a single Client across every openwebui_user data source in a plan,
+// so this avoids re-fetching the full user list for every lookup.
 func (c *Client) GetUsers() ([]User, error) {
+	c.usersMu.Lock()
+	defer c.usersMu.Unlock()
+
+	if c.usersCached {
+		return c.usersCache, nil
+	}
+
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/users/all", c.endpoint), nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
@@ -56,6 +71,9 @@ func (c *Client) GetUsers() ([]User, error) {
 	for _, apiUser := range apiUserList.Users {
 		users = append(users, *APIToUser(&apiUser))
 	}
+
+	c.usersCache = users
+	c.usersCached = true
 
 	return users, nil
 }
