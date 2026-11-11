@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 )
 
@@ -71,12 +73,15 @@ func (c *Client) Get(id string) (*Group, error) {
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	log.Printf("[DEBUG] Group Get response: %s", string(bodyBytes))
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
 	}
 
 	var group Group
-	if err := json.NewDecoder(resp.Body).Decode(&group); err != nil {
+	if err := json.Unmarshal(bodyBytes, &group); err != nil {
 		return nil, err
 	}
 
@@ -163,4 +168,113 @@ func (c *Client) List() ([]Group, error) {
 	}
 
 	return groups, nil
+}
+
+// GetUserIDs returns the IDs of a group's current members. Open WebUI's
+// GroupResponse (returned by Get/Create/Update) no longer carries the member
+// list - only a member_count - so this is the only way to read actual
+// membership.
+func (c *Client) GetUserIDs(id string) ([]string, error) {
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users", c.BaseURL, id), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	log.Printf("[DEBUG] Group GetUserIDs response: %s", string(bodyBytes))
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API request failed with status code: %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	var members []GroupMember
+	if err := json.Unmarshal(bodyBytes, &members); err != nil {
+		return nil, err
+	}
+
+	userIDs := make([]string, 0, len(members))
+	for _, member := range members {
+		userIDs = append(userIDs, member.ID)
+	}
+
+	return userIDs, nil
+}
+
+// AddUsers adds the given user IDs to a group's membership. It is a no-op if
+// userIDs is empty.
+func (c *Client) AddUsers(id string, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	body, err := json.Marshal(UserIdsForm{UserIDs: userIDs})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users/add", c.BaseURL, id), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API request failed with status code: %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
+}
+
+// RemoveUsers removes the given user IDs from a group's membership. It is a
+// no-op if userIDs is empty.
+func (c *Client) RemoveUsers(id string, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	body, err := json.Marshal(UserIdsForm{UserIDs: userIDs})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users/remove", c.BaseURL, id), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("accept", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API request failed with status code: %d: %s", resp.StatusCode, string(bodyBytes))
+	}
+
+	return nil
 }

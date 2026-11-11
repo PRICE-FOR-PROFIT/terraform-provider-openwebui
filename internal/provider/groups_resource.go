@@ -302,6 +302,16 @@ func (r *GroupResource) Create(ctx context.Context, req resource.CreateRequest, 
 		return
 	}
 
+	// Membership isn't set via create/update (Open WebUI's GroupForm has no
+	// user_ids field); it has to go through the dedicated members endpoint.
+	if err := r.client.AddUsers(updatedGroup.ID, userIDs); err != nil {
+		resp.Diagnostics.AddError(
+			"Error adding group members",
+			fmt.Sprintf("Could not add members to group ID %s: %s", updatedGroup.ID, err),
+		)
+		return
+	}
+
 	plan.ID = types.StringValue(updatedGroup.ID)
 
 	diags = resp.State.Set(ctx, plan)
@@ -328,8 +338,17 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	state.Name = types.StringValue(group.Name)
 	state.Description = types.StringValue(group.Description)
 
-	sort.Strings(group.UserIDs)
-	userIDs, diags := types.ListValueFrom(ctx, types.StringType, group.UserIDs)
+	currentUserIDs, err := r.client.GetUserIDs(state.ID.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading group members",
+			fmt.Sprintf("Could not read members of group ID %s: %s", state.ID.ValueString(), err),
+		)
+		return
+	}
+
+	sort.Strings(currentUserIDs)
+	userIDs, diags := types.ListValueFrom(ctx, types.StringType, currentUserIDs)
 
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -607,10 +626,69 @@ func (r *GroupResource) Update(ctx context.Context, req resource.UpdateRequest, 
 		return
 	}
 
+	// Membership isn't set via create/update (Open WebUI's GroupUpdateForm
+	// has no user_ids field); reconcile it against the live membership
+	// through the dedicated members endpoint instead.
+	currentUserIDs, err := r.client.GetUserIDs(updatedGroup.ID)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error reading group members",
+			fmt.Sprintf("Could not read members of group ID %s: %s", updatedGroup.ID, err),
+		)
+		return
+	}
+
+	toAdd, toRemove := diffUserIDs(userIDs, currentUserIDs)
+
+	if err := r.client.AddUsers(updatedGroup.ID, toAdd); err != nil {
+		resp.Diagnostics.AddError(
+			"Error adding group members",
+			fmt.Sprintf("Could not add members to group ID %s: %s", updatedGroup.ID, err),
+		)
+		return
+	}
+
+	if err := r.client.RemoveUsers(updatedGroup.ID, toRemove); err != nil {
+		resp.Diagnostics.AddError(
+			"Error removing group members",
+			fmt.Sprintf("Could not remove members from group ID %s: %s", updatedGroup.ID, err),
+		)
+		return
+	}
+
 	plan.ID = types.StringValue(updatedGroup.ID)
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
+}
+
+// diffUserIDs compares the desired membership against the current one,
+// returning the IDs that need to be added and the IDs that need to be
+// removed to reconcile the two.
+func diffUserIDs(desired, current []string) (toAdd, toRemove []string) {
+	desiredSet := make(map[string]bool, len(desired))
+	for _, id := range desired {
+		desiredSet[id] = true
+	}
+
+	currentSet := make(map[string]bool, len(current))
+	for _, id := range current {
+		currentSet[id] = true
+	}
+
+	for _, id := range desired {
+		if !currentSet[id] {
+			toAdd = append(toAdd, id)
+		}
+	}
+
+	for _, id := range current {
+		if !desiredSet[id] {
+			toRemove = append(toRemove, id)
+		}
+	}
+
+	return toAdd, toRemove
 }
 
 func (r *GroupResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {

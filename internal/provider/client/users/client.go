@@ -5,12 +5,18 @@ package users
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"sync"
 )
+
+// ErrUserNotFound is returned when a lookup completes successfully but no
+// matching user exists, as distinct from an error contacting the API. Callers
+// can use errors.Is(err, ErrUserNotFound) to tell the two apart.
+var ErrUserNotFound = errors.New("user not found")
 
 // Client implements the users operations
 type Client struct {
@@ -93,7 +99,7 @@ func (c *Client) GetUser(id string) (*User, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("user not found with ID: %s", id)
+	return nil, ErrUserNotFound
 }
 
 // FindUserByEmail finds a user by their email address
@@ -109,7 +115,7 @@ func (c *Client) FindUserByEmail(email string) (*User, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("user not found with email: %s", email)
+	return nil, ErrUserNotFound
 }
 
 // FindUserByName finds a user by their name
@@ -125,5 +131,5 @@ func (c *Client) FindUserByName(name string) (*User, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("user not found with name: %s", name)
+	return nil, ErrUserNotFound
 }

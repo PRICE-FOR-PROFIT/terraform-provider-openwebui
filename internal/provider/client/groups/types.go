@@ -15,6 +15,18 @@ type Group struct {
 	UpdatedAt   int64                  `json:"updated_at"`
 }
 
+// UserIdsForm is the request body for the group membership add/remove
+// endpoints ("/api/v1/groups/id/{id}/users/add" and ".../remove").
+type UserIdsForm struct {
+	UserIDs []string `json:"user_ids"`
+}
+
+// GroupMember is the subset of UserInfoResponse (returned by
+// "/api/v1/groups/id/{id}/users") that we need: the member's user ID.
+type GroupMember struct {
+	ID string `json:"id"`
+}
+
 type GroupPermissions struct {
 	Workspace WorkspacePermissions `json:"workspace"`
 	Chat      ChatPermissions      `json:"chat"`
