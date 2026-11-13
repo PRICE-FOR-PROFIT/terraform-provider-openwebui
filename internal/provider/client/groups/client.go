@@ -6,6 +6,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 )
 
@@ -71,12 +73,15 @@ func (c *Client) Get(id string) (*Group, error) {
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	log.Printf("[DEBUG] Group Get response: %s", string(bodyBytes))
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
 	}
 
 	var group Group
-	if err := json.NewDecoder(resp.Body).Decode(&group); err != nil {
+	if err := json.Unmarshal(bodyBytes, &group); err != nil {
 		return nil, err
 	}
 
@@ -176,6 +181,9 @@ func (c *Client) List() ([]Group, error) {
 	return groups, nil
 }
 
+// GetUsers returns a group's current members. Open WebUI's GroupResponse
+// (returned by Get/Create/Update) no longer carries the member list - only a
+// member_count - so this is the only way to read actual membership.
 func (c *Client) GetUsers(id string) ([]User, error) {
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users", c.BaseURL, id), nil)
 	if err != nil {
@@ -191,25 +199,29 @@ func (c *Client) GetUsers(id string) ([]User, error) {
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	log.Printf("[DEBUG] Group GetUsers response: %s", string(bodyBytes))
+
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("API request failed with status code: %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var users []User
-	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+	if err := json.Unmarshal(bodyBytes, &users); err != nil {
 		return nil, err
 	}
 
 	return users, nil
 }
 
+// AddUsers adds the given user IDs to a group's membership. It is a no-op if
+// userIDs is empty.
 func (c *Client) AddUsers(id string, userIDs []string) error {
 	if len(userIDs) == 0 {
-		return nil // No-op for empty list
+		return nil
 	}
 
-	form := UserIdsForm{UserIDs: userIDs}
-	body, err := json.Marshal(form)
+	body, err := json.Marshal(UserIdsForm{UserIDs: userIDs})
 	if err != nil {
 		return err
 	}
@@ -230,19 +242,21 @@ func (c *Client) AddUsers(id string, userIDs []string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API request failed with status code: %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	return nil
 }
 
+// RemoveUsers removes the given user IDs from a group's membership. It is a
+// no-op if userIDs is empty.
 func (c *Client) RemoveUsers(id string, userIDs []string) error {
 	if len(userIDs) == 0 {
-		return nil // No-op for empty list
+		return nil
 	}
 
-	form := UserIdsForm{UserIDs: userIDs}
-	body, err := json.Marshal(form)
+	body, err := json.Marshal(UserIdsForm{UserIDs: userIDs})
 	if err != nil {
 		return err
 	}
@@ -263,7 +277,8 @@ func (c *Client) RemoveUsers(id string, userIDs []string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("API request failed with status code: %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API request failed with status code: %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	return nil

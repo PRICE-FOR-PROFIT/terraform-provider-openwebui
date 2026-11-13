@@ -16,6 +16,15 @@ type Group struct {
 	UpdatedAt   int64                  `json:"updated_at"`
 }
 
+// UserIdsForm is the request body for the group membership add/remove
+// endpoints ("/api/v1/groups/id/{id}/users/add" and ".../remove").
+type UserIdsForm struct {
+	UserIDs []string `json:"user_ids"`
+}
+
+// User is a group member, as returned by
+// "/api/v1/groups/id/{id}/users". Only used to parse API responses; callers
+// extract the IDs they need.
 type User struct {
 	ID              string   `json:"id"`
 	Name            string   `json:"name"`
@@ -27,10 +36,6 @@ type User struct {
 	Bio             *string  `json:"bio"`
 	Groups          []string `json:"groups"`
 	IsActive        bool     `json:"is_active"`
-}
-
-type UserIdsForm struct {
-	UserIDs []string `json:"user_ids"`
 }
 
 type GroupPermissions struct {

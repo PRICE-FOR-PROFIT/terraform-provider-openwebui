@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -170,6 +171,10 @@ func (d *UserDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	if !config.ID.IsNull() {
 		user, err = d.client.GetUser(config.ID.ValueString())
 		if err != nil {
+			if errors.Is(err, users.ErrUserNotFound) {
+				d.setNotFound(ctx, resp, config)
+				return
+			}
 			resp.Diagnostics.AddError(
 				"Error reading user by ID",
 				fmt.Sprintf("Could not read user ID %s: %s", config.ID.ValueString(), err.Error()),
@@ -180,6 +185,10 @@ func (d *UserDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		// Try to find user by email
 		user, err = d.client.FindUserByEmail(config.Email.ValueString())
 		if err != nil {
+			if errors.Is(err, users.ErrUserNotFound) {
+				d.setNotFound(ctx, resp, config)
+				return
+			}
 			resp.Diagnostics.AddError(
 				"Error reading user by email",
 				fmt.Sprintf("Could not find user with email %s: %s", config.Email.ValueString(), err.Error()),
@@ -190,6 +199,10 @@ func (d *UserDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 		// Try to find user by name
 		user, err = d.client.FindUserByName(config.Name.ValueString())
 		if err != nil {
+			if errors.Is(err, users.ErrUserNotFound) {
+				d.setNotFound(ctx, resp, config)
+				return
+			}
 			resp.Diagnostics.AddError(
 				"Error reading user by name",
 				fmt.Sprintf("Could not find user with name %s: %s", config.Name.ValueString(), err.Error()),
@@ -226,5 +239,29 @@ func (d *UserDataSource) Read(ctx context.Context, req datasource.ReadRequest, r
 	state.OAuthSub = user.OAuthSub
 
 	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+}
+
+// setNotFound populates state for a user that could not be located, without
+// raising an error. The search criteria the caller configured (id, email, or
+// name) is echoed back; every other attribute, including id when the lookup
+// was by email or name, is left null so configurations can detect a missing
+// user by checking for a null id.
+func (d *UserDataSource) setNotFound(ctx context.Context, resp *datasource.ReadResponse, config UserDataSourceModel) {
+	state := UserDataSourceModel{
+		ID:              config.ID,
+		Name:            config.Name,
+		Email:           config.Email,
+		Role:            types.StringNull(),
+		ProfileImageURL: types.StringNull(),
+		LastActiveAt:    types.Int64Null(),
+		UpdatedAt:       types.Int64Null(),
+		CreatedAt:       types.Int64Null(),
+		APIKey:          types.StringNull(),
+		Info:            types.MapNull(types.StringType),
+		OAuthSub:        types.StringNull(),
+	}
+
+	diags := resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 }

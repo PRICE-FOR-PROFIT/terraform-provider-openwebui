@@ -338,17 +338,15 @@ func (r *GroupResource) Read(ctx context.Context, req resource.ReadRequest, resp
 	state.Name = types.StringValue(group.Name)
 	state.Description = types.StringValue(group.Description)
 
-	// Get users separately
 	users, err := r.client.GetUsers(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError(
-			"Error reading group users",
-			fmt.Sprintf("Could not read users for group ID %s: %s", state.ID.ValueString(), err),
+			"Error reading group members",
+			fmt.Sprintf("Could not read members of group ID %s: %s", state.ID.ValueString(), err),
 		)
 		return
 	}
 
-	// Extract user IDs
 	userIDs := make([]string, len(users))
 	for i, user := range users {
 		userIDs[i] = user.ID

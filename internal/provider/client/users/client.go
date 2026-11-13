@@ -5,16 +5,27 @@ package users
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"sync"
 )
+
+// ErrUserNotFound is returned when a lookup completes successfully but no
+// matching user exists, as distinct from an error contacting the API. Callers
+// can use errors.Is(err, ErrUserNotFound) to tell the two apart.
+var ErrUserNotFound = errors.New("user not found")
 
 // Client implements the users operations
 type Client struct {
 	endpoint string
 	token    string
+
+	usersMu     sync.Mutex
+	usersCache  []User
+	usersCached bool
 }
 
 // NewClient creates a new users client
@@ -25,8 +36,18 @@ func NewClient(endpoint, token string) *Client {
 	}
 }
 
-// GetUsers retrieves a list of users
+// GetUsers retrieves the list of users, fetching it from the API once per
+// Client instance and reusing the result on subsequent calls. The provider
+// shares a single Client across every openwebui_user data source in a plan,
+// so this avoids re-fetching the full user list for every lookup.
 func (c *Client) GetUsers() ([]User, error) {
+	c.usersMu.Lock()
+	defer c.usersMu.Unlock()
+
+	if c.usersCached {
+		return c.usersCache, nil
+	}
+
 	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/v1/users/all", c.endpoint), nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
@@ -57,6 +78,9 @@ func (c *Client) GetUsers() ([]User, error) {
 		users = append(users, *APIToUser(&apiUser))
 	}
 
+	c.usersCache = users
+	c.usersCached = true
+
 	return users, nil
 }
 
@@ -75,7 +99,7 @@ func (c *Client) GetUser(id string) (*User, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("user not found with ID: %s", id)
+	return nil, ErrUserNotFound
 }
 
 // FindUserByEmail finds a user by their email address
@@ -91,7 +115,7 @@ func (c *Client) FindUserByEmail(email string) (*User, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("user not found with email: %s", email)
+	return nil, ErrUserNotFound
 }
 
 // FindUserByName finds a user by their name
@@ -107,5 +131,5 @@ func (c *Client) FindUserByName(name string) (*User, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("user not found with name: %s", name)
+	return nil, ErrUserNotFound
 }
