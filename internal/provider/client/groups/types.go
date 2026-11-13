@@ -1,4 +1,5 @@
-// Copyright (c) HashiCorp, Inc.
+// Copyright (c) Coalition, Inc.
+// SPDX-License-Identifier: MIT
 
 package groups
 
@@ -21,10 +22,20 @@ type UserIdsForm struct {
 	UserIDs []string `json:"user_ids"`
 }
 
-// GroupMember is the subset of UserInfoResponse (returned by
-// "/api/v1/groups/id/{id}/users") that we need: the member's user ID.
-type GroupMember struct {
-	ID string `json:"id"`
+// User is a group member, as returned by
+// "/api/v1/groups/id/{id}/users". Only used to parse API responses; callers
+// extract the IDs they need.
+type User struct {
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Email           string   `json:"email"`
+	Role            string   `json:"role"`
+	StatusEmoji     *string  `json:"status_emoji"`
+	StatusMessage   *string  `json:"status_message"`
+	StatusExpiresAt *int64   `json:"status_expires_at"`
+	Bio             *string  `json:"bio"`
+	Groups          []string `json:"groups"`
+	IsActive        bool     `json:"is_active"`
 }
 
 type GroupPermissions struct {

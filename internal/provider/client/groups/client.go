@@ -89,7 +89,18 @@ func (c *Client) Get(id string) (*Group, error) {
 }
 
 func (c *Client) Update(id string, group *Group) (*Group, error) {
-	body, err := json.Marshal(group)
+	// Create update payload without user_ids (API ignores it)
+	updatePayload := struct {
+		Name        string            `json:"name"`
+		Description string            `json:"description"`
+		Permissions *GroupPermissions `json:"permissions,omitempty"`
+	}{
+		Name:        group.Name,
+		Description: group.Description,
+		Permissions: group.Permissions,
+	}
+
+	body, err := json.Marshal(updatePayload)
 	if err != nil {
 		return nil, err
 	}
@@ -170,11 +181,10 @@ func (c *Client) List() ([]Group, error) {
 	return groups, nil
 }
 
-// GetUserIDs returns the IDs of a group's current members. Open WebUI's
-// GroupResponse (returned by Get/Create/Update) no longer carries the member
-// list - only a member_count - so this is the only way to read actual
-// membership.
-func (c *Client) GetUserIDs(id string) ([]string, error) {
+// GetUsers returns a group's current members. Open WebUI's GroupResponse
+// (returned by Get/Create/Update) no longer carries the member list - only a
+// member_count - so this is the only way to read actual membership.
+func (c *Client) GetUsers(id string) ([]User, error) {
 	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v1/groups/id/%s/users", c.BaseURL, id), nil)
 	if err != nil {
 		return nil, err
@@ -190,23 +200,18 @@ func (c *Client) GetUserIDs(id string) ([]string, error) {
 	defer resp.Body.Close()
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
-	log.Printf("[DEBUG] Group GetUserIDs response: %s", string(bodyBytes))
+	log.Printf("[DEBUG] Group GetUsers response: %s", string(bodyBytes))
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API request failed with status code: %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
-	var members []GroupMember
-	if err := json.Unmarshal(bodyBytes, &members); err != nil {
+	var users []User
+	if err := json.Unmarshal(bodyBytes, &users); err != nil {
 		return nil, err
 	}
 
-	userIDs := make([]string, 0, len(members))
-	for _, member := range members {
-		userIDs = append(userIDs, member.ID)
-	}
-
-	return userIDs, nil
+	return users, nil
 }
 
 // AddUsers adds the given user IDs to a group's membership. It is a no-op if

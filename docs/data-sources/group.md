@@ -34,10 +34,30 @@ Group data source for OpenWebUI
 Read-Only:
 
 - `chat` (Attributes) (see [below for nested schema](#nestedatt--permissions--chat))
+- `features` (Attributes) (see [below for nested schema](#nestedatt--permissions--features))
+- `sharing` (Attributes) (see [below for nested schema](#nestedatt--permissions--sharing))
 - `workspace` (Attributes) (see [below for nested schema](#nestedatt--permissions--workspace))
 
 <a id="nestedatt--permissions--chat"></a>
 ### Nested Schema for `permissions.chat`
+
+Required:
+
+- `call` (Boolean)
+- `continue_response` (Boolean)
+- `controls` (Boolean)
+- `delete_message` (Boolean)
+- `export` (Boolean)
+- `multiple_models` (Boolean)
+- `params` (Boolean)
+- `rate_response` (Boolean)
+- `regenerate_response` (Boolean)
+- `share` (Boolean)
+- `stt` (Boolean)
+- `system_prompt` (Boolean)
+- `temporary_enforced` (Boolean)
+- `tts` (Boolean)
+- `valves` (Boolean)
 
 Read-Only:
 
@@ -45,6 +65,30 @@ Read-Only:
 - `edit` (Boolean)
 - `file_upload` (Boolean)
 - `temporary` (Boolean)
+
+
+<a id="nestedatt--permissions--features"></a>
+### Nested Schema for `permissions.features`
+
+Required:
+
+- `code_interpreter` (Boolean)
+- `direct_tool_servers` (Boolean)
+- `image_generation` (Boolean)
+- `notes` (Boolean)
+- `web_search` (Boolean)
+
+
+<a id="nestedatt--permissions--sharing"></a>
+### Nested Schema for `permissions.sharing`
+
+Required:
+
+- `public_knowledge` (Boolean)
+- `public_models` (Boolean)
+- `public_notes` (Boolean)
+- `public_prompts` (Boolean)
+- `public_tools` (Boolean)
 
 
 <a id="nestedatt--permissions--workspace"></a>
